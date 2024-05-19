@@ -17,7 +17,7 @@
 
 class Logger : public nvinfer1::ILogger {
 public:
-    void log(Severity severity, const char *msg) override {
+    void log(Severity severity, const char *msg) noexcept override {
         using namespace std;
         string s;
         switch (severity) {

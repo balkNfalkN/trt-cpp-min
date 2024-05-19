@@ -3,6 +3,7 @@
 // This one uses model1.onnx with fixed batch size (1)
 // Batch size at inference must be the same !
 
+#include <NvInferRuntimeBase.h>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -18,7 +19,7 @@
 
 class Logger : public nvinfer1::ILogger {
 public:
-    void log(Severity severity, const char *msg) override {
+    void log(Severity severity, const nvinfer1::AsciiChar *msg) noexcept override {
         using namespace std;
         string s;
         switch (severity) {

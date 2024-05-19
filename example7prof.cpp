@@ -17,7 +17,7 @@ constexpr bool USE_INT8 = false;
 //======================================================================================================================
 class GoblinProfiler: public nvinfer1::IProfiler {
 public:
-	virtual void reportLayerTime(const char *layerName, float ms) {
+	virtual void reportLayerTime(const char *layerName, float ms) noexcept {
 		// Note: this is a minimal output for demo purposes only!
 		// In real life, it's betetr to remember all data, then print after profiling
 		// Like in the nvidia example sampleNMT
@@ -30,7 +30,7 @@ public:
 
 class Logger : public nvinfer1::ILogger {
 public:
-    void log(Severity severity, const char *msg) override {
+    void log(Severity severity, const char *msg) noexcept override {
         using namespace std;
         string s;
         switch (severity) {
