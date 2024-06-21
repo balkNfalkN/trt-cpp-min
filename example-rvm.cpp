@@ -6,6 +6,7 @@
 #include <cuda_runtime.h>
 
 #include <string>
+#include <vector>
 #include <iostream>
 
 class Logger : public nvinfer1::ILogger
@@ -36,18 +37,12 @@ class Logger : public nvinfer1::ILogger
   }
 };
 
-bool LoadTRTEngineMatting( int argc, char* argv[]
+bool LoadTRTEngineMatting( const std::string& strTrtEngineFilepath
                          , Logger& logger
 			 , nvinfer1::IRuntime* pTrtRuntime
 			 , nvinfer1::ICudaEngine** ppTrtCudaEngine )
 {
-  if( argc < 2 )
-  {
-    logger.log( nvinfer1::ILogger::Severity::kERROR, "Must specify path to RVM TRT engine as first argument. Exitting." );
-    return false;
-  }
 
-  std::string strTrtEngineFilepath = argv[1];
   logger.log( nvinfer1::ILogger::Severity::kINFO, (std::string("Loading Matting TRT Engine '") + strTrtEngineFilepath + "'").c_str() );
 
   FILE* fileTrtEngine = fopen( strTrtEngineFilepath.c_str(), "rb" );
@@ -85,6 +80,7 @@ bool LoadTRTEngineMatting( int argc, char* argv[]
   logger.log( nvinfer1::ILogger::Severity::kINFO, (std::string("File size: ") + std::to_string(fileSizeTrtEngine) + " bytes.").c_str() );
 
   // Deserialize
+  //
   *ppTrtCudaEngine = pTrtRuntime->deserializeCudaEngine( bufferTrtEngine, fileSizeTrtEngine );
   free( bufferTrtEngine );
   if( !ppTrtCudaEngine )
@@ -95,17 +91,67 @@ bool LoadTRTEngineMatting( int argc, char* argv[]
 
   logger.log( nvinfer1::ILogger::Severity::kINFO, ("Successfully loaded Matting TRT Engine '" + strTrtEngineFilepath + "'.").c_str() );
 
+  // Print out inputs/outpus
+  //
+  std::cout << "=============\nInputs / Outputs (i.e. Bindings) :\n";
+  int n = (*ppTrtCudaEngine)->getNbBindings();
+  for (int i = 0; i < n; ++i)
+  {
+    nvinfer1::Dims d = (*ppTrtCudaEngine)->getBindingDimensions(i);
+    std::cout << i << " : " << (*ppTrtCudaEngine)->getBindingName(i) << " : dims=";
+    for (int j = 0; j < d.nbDims; ++j)
+    {
+      std::cout << d.d[j];
+      if (j < d.nbDims - 1)
+      {
+        std::cout << "x";
+      }
+    }
+    std::cout << " , dtype=" << (int) (*ppTrtCudaEngine)->getBindingDataType(i) << " ";
+    std::cout << ((*ppTrtCudaEngine)->bindingIsInput(i) ? "IN" : "OUT") << std::endl;
+  }
+  std::cout << "=============\n\n";
+
   return true;
 }
 
 #define ERROR_TRT_RUNTIME_INIT_FAILED         1
-#define ERROR_TRT_ENGINE_FAILED_LOAD          2
+#define ERROR_TRT_ENGINE_LOAD_FAILED          2
+
+struct Arguments_ExampleRVM
+{
+  std::string strTrtEngineFilepath;
+  std::vector<std::string> strPictureFilepaths;
+
+  bool parse( int argc, char* argv[], Logger& logger )
+  {
+    if( argc < 2 )
+    {
+      logger.log( nvinfer1::ILogger::Severity::kERROR, "Must specify path to RVM TRT engine as first argument. Exiting." );
+      return false;
+    }
+
+    strTrtEngineFilepath = argv[1];
+
+    for( int i = 2; i < argc; i++ )
+    {
+      strPictureFilepaths.push_back( argv[i] );
+    }
+
+    return true;
+  }
+};
 
 int main( int argc, char* argv[] )
 {
   Logger logger;
   logger.log( nvinfer1::ILogger::Severity::kINFO, "C++ TensorRT RVM Inference example" );
+  
+  Arguments_ExampleRVM args;
+  args.parse( argc, argv, logger );
 
+  // Initialize TRT
+  //
   nvinfer1::IRuntime* pTrtRuntime = nvinfer1::createInferRuntime( logger );
   if( !pTrtRuntime )
   {
@@ -114,13 +160,19 @@ int main( int argc, char* argv[] )
   }
   logger.log( nvinfer1::ILogger::Severity::kINFO, "TRT Runtime Created." );
 
+  // Initialize RVM TRT Engine
+  //
   nvinfer1::ICudaEngine* pTrtCudaEngine = nullptr;
-  if( !LoadTRTEngineMatting( argc, argv, logger, pTrtRuntime, &pTrtCudaEngine ) )
+  if( !LoadTRTEngineMatting( args.strTrtEngineFilepath, logger, pTrtRuntime, &pTrtCudaEngine ) )
   {
-    return ERROR_TRT_ENGINE_FAILED_LOAD;
+    return ERROR_TRT_ENGINE_LOAD_FAILED;
   }
 
+  // Process Loop
+  //
 
+  // Cleanup
+  //
   pTrtCudaEngine->destroy();
   pTrtRuntime->destroy();
 
