@@ -606,6 +606,8 @@ int main( int argc, char* argv[] )
   //
   RVMRunState rvmRunState( args.strArgs, pTrtExecutionContext, logger);
 
+  rvmRunState.ProcessPictures( args.strArgs );
+
   // Cleanup
   //
   pTrtExecutionContext->destroy();
