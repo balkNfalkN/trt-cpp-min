@@ -197,6 +197,50 @@ class RVMRunState
     bool ProduceOutput( const char* szOutPic = nullptr );
 };
 
+bool RVMRunState::ProcessPictures( const std::vector<std::string> &args )
+{
+  for( std::vector<std::string>::const_iterator itInFilepath = args.begin(); itInFilepath != args.end(); itInFilepath++ )
+  {
+    if( !ConsumeInput( itInFilepath->c_str() ) )
+    {
+      m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to consume input. Exiting." );
+      return false;
+    }
+
+    if( !RunInference() )
+    {
+      m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to run TRT inference. Exiting." );
+      return false;
+    }
+
+    std::string outFilepath = *itInFilepath + ".fgr";
+    if( !ConsumeInput( outFilepath.c_str() ) )
+    {
+      m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to produce output. Exiting." );
+      return false;
+    }
+  }
+  return true;
+}
+
+bool RVMRunState::RunInference()
+{
+  if( !m_pTrtExecutionContext->enqueueV2( m_cuBufs, m_cudaStream, nullptr ) )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "TRT enqueueV2() failed. Exiting." );
+    return false;
+  }
+
+  // Pretty sure I don't need that but keeping for now.
+  if( cudaStreamSynchronize( m_cudaStream ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "cudaStreamSynchronize() failed. Exiting." );
+    return false;
+  }
+
+  return true;
+}
+
 void RVMRunState::SwapRecurrents()
 {
   void* tmpR1 = m_cuBufs[IDX_R1I];
@@ -441,7 +485,7 @@ bool RVMRunState::ProduceOutput( const char* szInRawRGBAFilepath )
     return false;
   }
 
-  if( cudaMemcpyAsync( m_bufStageFgr, m_cuBufs[IDX_SRC], m_picSize, cudaMemcpyDeviceToHost ) != cudaError_t::cudaSuccess )
+  if( cudaMemcpyAsync( m_bufStageFgr, m_cuBufs[IDX_FGR], m_picSize, cudaMemcpyDeviceToHost ) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to do DtoH cudaMemcpyAsync().");
     return false;
