@@ -1,0 +1,4 @@
+* Add multiple cuStreams for overlap
+* Add cuda error utilities
+* Add general utilities (error catching, unlikely etc.)
+* Use up-to-date TRT API.
