@@ -23,3 +23,5 @@ add_executable(example5 example5.cpp)
 add_executable(example6 example6.cpp)
 add_executable(example7 example7.cpp)
 add_executable(example7prof example7prof.cpp)
+
+add_executable(example-rvm example-rvm.cpp)
