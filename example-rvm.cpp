@@ -189,95 +189,13 @@ class RVMRunState
 
   // Templated
   //
+  public:
+    bool ProcessPictures( const std::vector<std::string>& args );
+
   private:
     bool ConsumeInput( const char* szInPic = nullptr );
     bool ProduceOutput( const char* szOutPic = nullptr );
-
-  public:
-    bool ProcessPictures( const std::vector<std::string>& args );
 };
-
-// raw RGB file implementation:
-//
-//
-
-bool RVMRunState::ConsumeInput( const char* szInRawRGBFilepath )
-{
-  if( !szInRawRGBFilepath )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kINTERNAL_ERROR
-	        , "szInRawRGBFilepath agument is NULL. Exiting." );
-    assert( false );
-    return false;
-  }
-
-  FILE* fileRawFrame = fopen( szInRawRGBFilepath, "rb" );
-  if( !fileRawFrame )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR
-	        , (std::string("Bad filepath for raw RGB frame '") + szInRawRGBFilepath + "'. Exiting").c_str() );
-    return false;
-  }
-
-  // Read entire file
-  //
-  size_t bytesRead = fread( m_bufStageSrc, 1, m_picSize, fileRawFrame );
-  if( bytesRead != m_picSize )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Failed to read raw RGB file '") + szInRawRGBFilepath + "'.").c_str() );
-    fclose( fileRawFrame );
-    return false;
-  }
-
-  fclose( fileRawFrame );
-
-  if( cudaMemcpyAsync( m_cuBufs[IDX_SRC], m_bufStageSrc, m_picSize, cudaMemcpyHostToDevice ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to do HtoD cudaMemcpyAsync().");
-    return false;
-  }
-
-  return true;
-}
-
-bool RVMRunState::ProduceOutput( const char* szInRawRGBAFilepath )
-{
-  if( !szInRawRGBAFilepath )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kINTERNAL_ERROR
-	        , "szInRawRGBFilepath agument is NULL. Exiting." );
-    assert( false );
-    return false;
-  }
-
-  if( cudaMemcpyAsync( m_bufStageFgr, m_cuBufs[IDX_SRC], m_picSize, cudaMemcpyDeviceToHost ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to do DtoH cudaMemcpyAsync().");
-    return false;
-  }
-
-  FILE* fileRawFrame = fopen( szInRawRGBAFilepath, "wb" );
-  if( !fileRawFrame )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR
-	        , (std::string("Bad filepath for raw RGB frame '") + szInRawRGBAFilepath + "'. Exiting").c_str() );
-    return false;
-  }
-
-  // write out to file
-  //
-  size_t bytesWritten = fwrite( m_bufStageFgr, 1, m_picSize, fileRawFrame );
-  if( bytesWritten != m_picSize )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Failed to write out raw RGBA file '") + szInRawRGBAFilepath + "'.").c_str() );
-    fclose( fileRawFrame );
-    return false;
-  }
-
-  fclose( fileRawFrame );
-
-  return true;
-}
 
 void RVMRunState::SwapRecurrents()
 {
@@ -466,6 +384,88 @@ bool RVMRunState::FreeBuffers()
     return false;
   }
   m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully freed CUDA host memory for bindings." );
+
+  return true;
+}
+
+// raw RGB file implementation:
+//
+//
+
+bool RVMRunState::ConsumeInput( const char* szInRawRGBFilepath )
+{
+  if( !szInRawRGBFilepath )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kINTERNAL_ERROR
+	        , "szInRawRGBFilepath agument is NULL. Exiting." );
+    assert( false );
+    return false;
+  }
+
+  FILE* fileRawFrame = fopen( szInRawRGBFilepath, "rb" );
+  if( !fileRawFrame )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR
+	        , (std::string("Bad filepath for raw RGB frame '") + szInRawRGBFilepath + "'. Exiting").c_str() );
+    return false;
+  }
+
+  // Read entire file
+  //
+  size_t bytesRead = fread( m_bufStageSrc, 1, m_picSize, fileRawFrame );
+  if( bytesRead != m_picSize )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Failed to read raw RGB file '") + szInRawRGBFilepath + "'.").c_str() );
+    fclose( fileRawFrame );
+    return false;
+  }
+
+  fclose( fileRawFrame );
+
+  if( cudaMemcpyAsync( m_cuBufs[IDX_SRC], m_bufStageSrc, m_picSize, cudaMemcpyHostToDevice ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to do HtoD cudaMemcpyAsync().");
+    return false;
+  }
+
+  return true;
+}
+
+bool RVMRunState::ProduceOutput( const char* szInRawRGBAFilepath )
+{
+  if( !szInRawRGBAFilepath )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kINTERNAL_ERROR
+	        , "szInRawRGBFilepath agument is NULL. Exiting." );
+    assert( false );
+    return false;
+  }
+
+  if( cudaMemcpyAsync( m_bufStageFgr, m_cuBufs[IDX_SRC], m_picSize, cudaMemcpyDeviceToHost ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to do DtoH cudaMemcpyAsync().");
+    return false;
+  }
+
+  FILE* fileRawFrame = fopen( szInRawRGBAFilepath, "wb" );
+  if( !fileRawFrame )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR
+	        , (std::string("Bad filepath for raw RGB frame '") + szInRawRGBAFilepath + "'. Exiting").c_str() );
+    return false;
+  }
+
+  // write out to file
+  //
+  size_t bytesWritten = fwrite( m_bufStageFgr, 1, m_picSize, fileRawFrame );
+  if( bytesWritten != m_picSize )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Failed to write out raw RGBA file '") + szInRawRGBAFilepath + "'.").c_str() );
+    fclose( fileRawFrame );
+    return false;
+  }
+
+  fclose( fileRawFrame );
 
   return true;
 }
