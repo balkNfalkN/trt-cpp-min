@@ -144,7 +144,7 @@ bool LoadTRTEngineMatting( const std::string& strTrtEngineFilepath
 class RVMRunState
 {
   public:
-    RVMRunState( nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& logger );
+    RVMRunState( const std::vector<std::string>& args, nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& logger );
     ~RVMRunState();
 
   private:
@@ -166,10 +166,10 @@ class RVMRunState
       IDX_R2I = 2,
       IDX_R3I = 3,
       IDX_R4I = 4,
-      IDX_R1O = 5,
-      IDX_R2O = 6,
-      IDX_R3O = 7,
-      IDX_R4O = 8,
+      IDX_R1O = 8,
+      IDX_R2O = 7,
+      IDX_R3O = 6,
+      IDX_R4O = 5,
       IDX_FGR = 9,
       IDX_NUM = 10,
     };
@@ -178,91 +178,88 @@ class RVMRunState
     void* m_bufStageSrc;
     void* m_bufStageFgr;
 
+  // Common
+  //
   private:
-    bool LoadInput( std::string inPicFilepath );
-    bool SaveOutput( std::string outPicFilepath );
+    bool InitBuffers();
+    bool FreeBuffers();
     bool RunInference();
     void SwapRecurrents();
 
+  // Templated
+  //
+  private:
+    bool ConsumeInput( const char* szInPic = nullptr );
+    bool ProduceOutput( const char* szOutPic = nullptr );
+
   public:
-    bool ProcessPicture( std::string inPicFilepath );
+    bool ProcessPictures( const std::vector<std::string>& args );
 };
 
-RVMRunState::~RVMRunState()
-{
-  if( m_cuBufs[IDX_SRC] && cudaFree( m_cuBufs[IDX_SRC] ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
-  }
-  if( m_cuBufs[IDX_FGR] && cudaFree( m_cuBufs[IDX_FGR] ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
-  }
-  if( m_cuBufs[IDX_R1I] && cudaFree( m_cuBufs[IDX_R1I] ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
-  }
-  if( m_cuBufs[IDX_R1O] && cudaFree( m_cuBufs[IDX_R1O] ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
-  }
-  if( m_cuBufs[IDX_R2I] && cudaFree( m_cuBufs[IDX_R2I] ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
-  }
-  if( m_cuBufs[IDX_R2O] && cudaFree( m_cuBufs[IDX_R2O] ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
-  }
-  if( m_cuBufs[IDX_R3I] && cudaFree( m_cuBufs[IDX_R3I] ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
-  }
-  if( m_cuBufs[IDX_R3O] && cudaFree( m_cuBufs[IDX_R3O] ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
-  }
-  if( m_cuBufs[IDX_R4I] && cudaFree( m_cuBufs[IDX_R4I] ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
-  }
-  if( m_cuBufs[IDX_R4O] && cudaFree( m_cuBufs[IDX_R4O] ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
-  }
-  m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully freed CUDA memory for bindings." );
+// raw RGB file implementation:
+//
+//
 
-  if( m_bufStageSrc && cudaFreeHost( m_bufStageSrc ) != cudaError_t::cudaSuccess )
+bool RVMRunState::ConsumeInput( const char* szInRawRGBFilepath )
+{
+  if( !szInRawRGBFilepath )
   {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA host memory. Exiting." );
+    m_logger.log( nvinfer1::ILogger::Severity::kINTERNAL_ERROR
+	        , "szInRawRGBFilepath agument is NULL. Exiting." );
+    assert( false );
+    return false;
   }
-  if( m_bufStageFgr && cudaFreeHost( m_bufStageFgr ) != cudaError_t::cudaSuccess )
+
+  FILE* fileRawFrame = fopen( szInRawRGBFilepath, "rb" );
+  if( !fileRawFrame )
   {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA host memory. Exiting." );
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR
+	        , (std::string("Bad filepath for raw RGB frame '") + szInRawRGBFilepath + "'. Exiting").c_str() );
+    return false;
   }
-  m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully freed CUDA host memory for bindings." );
+
+  size_t picSize = m_picWidth * m_picHeight * 3 * sizeof(uint8_t);
+
+  // Read entire file
+  //
+  size_t bytesRead = fread( m_bufStageSrc, 1, picSize, fileRawFrame );
+  if( bytesRead != picSize )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Failed to read raw RGB file '") + szInRawRGBFilepath + "'.").c_str() );
+    fclose( fileRawFrame );
+    return false;
+  }
+
+  fclose( fileRawFrame );
+
+  if( cudaMemcpyAsync( m_cuBufs[IDX_SRC], m_bufStageSrc, picSize, cudaMemcpyHostToHost ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to do cudaMemcpyAsync().");
+  }
+
+  return true;
 }
 
-RVMRunState::RVMRunState( nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& logger )
-  : m_pTrtExecutionContext(pTrtExecutionContext)
-  , m_logger(logger)
-  , m_bufStageSrc(nullptr)
-  , m_bufStageFgr(nullptr)
+void RVMRunState::SwapRecurrents()
 {
-  for( int i = 0; i < IDX_NUM; i++ )
-  {
-    m_cuBufs[i] = nullptr;
-  }
+  void* tmpR1 = m_cuBufs[IDX_R1I];
+  void* tmpR2 = m_cuBufs[IDX_R2I];
+  void* tmpR3 = m_cuBufs[IDX_R3I];
+  void* tmpR4 = m_cuBufs[IDX_R1I];
 
-  // Create stream
-  //
-  if( cudaStreamCreate( &m_cudaStream ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to create cudaStream. Exiting." );
-    assert( false );
-  }
-  m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully created cudaStream." );
+  m_cuBufs[IDX_R1I] = m_cuBufs[IDX_R1O];
+  m_cuBufs[IDX_R2I] = m_cuBufs[IDX_R2O];
+  m_cuBufs[IDX_R3I] = m_cuBufs[IDX_R3O];
+  m_cuBufs[IDX_R4I] = m_cuBufs[IDX_R4O];
 
+  m_cuBufs[IDX_R1O] = tmpR1;
+  m_cuBufs[IDX_R2O] = tmpR2;
+  m_cuBufs[IDX_R3O] = tmpR3;
+  m_cuBufs[IDX_R4O] = tmpR4;
+}
+
+bool RVMRunState::InitBuffers()
+{
   // Allocate device memory buffers for bindings
   //
   if( cudaMalloc( &m_cuBufs[IDX_SRC], m_picWidth*m_picHeight*3*sizeof(uint8_t) ) != cudaError_t::cudaSuccess )
@@ -338,12 +335,138 @@ RVMRunState::RVMRunState( nvinfer1::IExecutionContext* pTrtExecutionContext, Log
   }
 
   m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully allocated host memory for staging input/output." );
+
+  // Initialize recurrents to 0
+  //
+  if( cudaMemset( m_cuBufs[IDX_R1I], 0, m_sizeR1) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to initialize CUDA memory. Exiting." );
+    assert( false );
+  }
+  if( cudaMemset( m_cuBufs[IDX_R2I], 0, m_sizeR2) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to initialize CUDA memory. Exiting." );
+    assert( false );
+  }
+  if( cudaMemset( m_cuBufs[IDX_R3I], 0, m_sizeR3) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to initialize CUDA memory. Exiting." );
+    assert( false );
+  }
+  if( cudaMemset( m_cuBufs[IDX_R4I], 0, m_sizeR4) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to initialize CUDA memory. Exiting." );
+    assert( false );
+  }
+
+  return true;
+}
+
+bool RVMRunState::FreeBuffers()
+{
+  if( m_cuBufs[IDX_SRC] && cudaFree( m_cuBufs[IDX_SRC] ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
+    return false;
+  }
+  if( m_cuBufs[IDX_FGR] && cudaFree( m_cuBufs[IDX_FGR] ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
+    return false;
+  }
+  if( m_cuBufs[IDX_R1I] && cudaFree( m_cuBufs[IDX_R1I] ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
+    return false;
+  }
+  if( m_cuBufs[IDX_R1O] && cudaFree( m_cuBufs[IDX_R1O] ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
+    return false;
+  }
+  if( m_cuBufs[IDX_R2I] && cudaFree( m_cuBufs[IDX_R2I] ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
+    return false;
+  }
+  if( m_cuBufs[IDX_R2O] && cudaFree( m_cuBufs[IDX_R2O] ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
+    return false;
+  }
+  if( m_cuBufs[IDX_R3I] && cudaFree( m_cuBufs[IDX_R3I] ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
+    return false;
+  }
+  if( m_cuBufs[IDX_R3O] && cudaFree( m_cuBufs[IDX_R3O] ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
+    return false;
+  }
+  if( m_cuBufs[IDX_R4I] && cudaFree( m_cuBufs[IDX_R4I] ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
+    return false;
+  }
+  if( m_cuBufs[IDX_R4O] && cudaFree( m_cuBufs[IDX_R4O] ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA memory. Exiting." );
+    return false;
+  }
+  m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully freed CUDA memory for bindings." );
+
+  if( m_bufStageSrc && cudaFreeHost( m_bufStageSrc ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA host memory. Exiting." );
+    return false;
+  }
+  if( m_bufStageFgr && cudaFreeHost( m_bufStageFgr ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA host memory. Exiting." );
+    return false;
+  }
+  m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully freed CUDA host memory for bindings." );
+
+  return true;
+}
+
+RVMRunState::~RVMRunState()
+{
+  bool bRet = FreeBuffers();
+  assert( bRet );
+}
+
+RVMRunState::RVMRunState( const std::vector<std::string>& args, nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& logger )
+  : m_pTrtExecutionContext(pTrtExecutionContext)
+  , m_logger(logger)
+  , m_bufStageSrc(nullptr)
+  , m_bufStageFgr(nullptr)
+{
+  for( int i = 0; i < IDX_NUM; i++ )
+  {
+    m_cuBufs[i] = nullptr;
+  }
+
+  // Create stream
+  //
+  if( cudaStreamCreate( &m_cudaStream ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to create cudaStream. Exiting." );
+    assert( false );
+  }
+  m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully created cudaStream." );
+
+  // Initialize CUDA buffers.
+  //
+  bool bRet = InitBuffers();
+  assert( bRet );
 }
 
 struct Arguments_ExampleRVM
 {
   std::string strTrtEngineFilepath;
-  std::vector<std::string> strPictureFilepaths;
+  std::vector<std::string> strArgs;
 
   bool parse( int argc, char* argv[], Logger& logger );
 };
@@ -360,7 +483,7 @@ bool Arguments_ExampleRVM::parse( int argc, char* argv[], Logger& logger )
 
   for( int i = 2; i < argc; i++ )
   {
-    strPictureFilepaths.push_back( argv[i] );
+    strArgs.push_back( argv[i] );
   }
 
   return true;
@@ -398,7 +521,7 @@ int main( int argc, char* argv[] )
 
   // Process Loop
   //
-  RVMRunState rvmRunState( pTrtExecutionContext, logger) ;
+  RVMRunState rvmRunState( args.strArgs, pTrtExecutionContext, logger);
 
   // Cleanup
   //
