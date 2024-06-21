@@ -154,10 +154,11 @@ class RVMRunState
 
     const size_t m_picWidth = 512;
     const size_t m_picHeight = 288;
-    const size_t m_sizeR1 = 1*16*144*256; 
-    const size_t m_sizeR2 = 1*32*72*128; 
-    const size_t m_sizeR3 = 1*64*36*64; 
-    const size_t m_sizeR4 = 1*128*18*32; 
+    const size_t m_picSize = m_picWidth*m_picHeight*3*sizeof(uint8_t);
+    const size_t m_sizeR1 = 1*16*144*256*sizeof(uint16_t); 
+    const size_t m_sizeR2 = 1*32*72*128*sizeof(uint16_t); 
+    const size_t m_sizeR3 = 1*64*36*64*sizeof(uint16_t); 
+    const size_t m_sizeR4 = 1*128*18*32*sizeof(uint16_t); 
 
     enum BindingIndices
     {
@@ -218,12 +219,10 @@ bool RVMRunState::ConsumeInput( const char* szInRawRGBFilepath )
     return false;
   }
 
-  size_t picSize = m_picWidth * m_picHeight * 3 * sizeof(uint8_t);
-
   // Read entire file
   //
-  size_t bytesRead = fread( m_bufStageSrc, 1, picSize, fileRawFrame );
-  if( bytesRead != picSize )
+  size_t bytesRead = fread( m_bufStageSrc, 1, m_picSize, fileRawFrame );
+  if( bytesRead != m_picSize )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Failed to read raw RGB file '") + szInRawRGBFilepath + "'.").c_str() );
     fclose( fileRawFrame );
@@ -232,10 +231,50 @@ bool RVMRunState::ConsumeInput( const char* szInRawRGBFilepath )
 
   fclose( fileRawFrame );
 
-  if( cudaMemcpyAsync( m_cuBufs[IDX_SRC], m_bufStageSrc, picSize, cudaMemcpyHostToHost ) != cudaError_t::cudaSuccess )
+  if( cudaMemcpyAsync( m_cuBufs[IDX_SRC], m_bufStageSrc, m_picSize, cudaMemcpyHostToDevice ) != cudaError_t::cudaSuccess )
   {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to do cudaMemcpyAsync().");
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to do HtoD cudaMemcpyAsync().");
+    return false;
   }
+
+  return true;
+}
+
+bool RVMRunState::ProduceOutput( const char* szInRawRGBAFilepath )
+{
+  if( !szInRawRGBAFilepath )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kINTERNAL_ERROR
+	        , "szInRawRGBFilepath agument is NULL. Exiting." );
+    assert( false );
+    return false;
+  }
+
+  if( cudaMemcpyAsync( m_bufStageFgr, m_cuBufs[IDX_SRC], m_picSize, cudaMemcpyDeviceToHost ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to do DtoH cudaMemcpyAsync().");
+    return false;
+  }
+
+  FILE* fileRawFrame = fopen( szInRawRGBAFilepath, "wb" );
+  if( !fileRawFrame )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR
+	        , (std::string("Bad filepath for raw RGB frame '") + szInRawRGBAFilepath + "'. Exiting").c_str() );
+    return false;
+  }
+
+  // write out to file
+  //
+  size_t bytesWritten = fwrite( m_bufStageFgr, 1, m_picSize, fileRawFrame );
+  if( bytesWritten != m_picSize )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Failed to write out raw RGBA file '") + szInRawRGBAFilepath + "'.").c_str() );
+    fclose( fileRawFrame );
+    return false;
+  }
+
+  fclose( fileRawFrame );
 
   return true;
 }
@@ -262,13 +301,13 @@ bool RVMRunState::InitBuffers()
 {
   // Allocate device memory buffers for bindings
   //
-  if( cudaMalloc( &m_cuBufs[IDX_SRC], m_picWidth*m_picHeight*3*sizeof(uint8_t) ) != cudaError_t::cudaSuccess )
+  if( cudaMalloc( &m_cuBufs[IDX_SRC], m_picSize ) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA memory. Exiting." );
     assert( false );
   }
 
-  if( cudaMalloc( &m_cuBufs[IDX_FGR], m_picWidth*m_picHeight*4*sizeof(uint8_t) ) != cudaError_t::cudaSuccess )
+  if( cudaMalloc( &m_cuBufs[IDX_FGR], m_picSize ) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA memory. Exiting." );
     assert( false );
