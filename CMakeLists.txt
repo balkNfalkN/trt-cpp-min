@@ -6,7 +6,7 @@ file(COPY model2.onnx DESTINATION .)
 
 # CUDA
 find_package(CUDA REQUIRED)
-include_directories(${CUDA_INCLUDE_DIRS})
+include_directories(${CUDA_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR})
 message("CUDA_TOOLKIT_ROOT_DIR = ${CUDA_TOOLKIT_ROOT_DIR}")
 message("CUDA_INCLUDE_DIRS = ${CUDA_INCLUDE_DIRS}")
 message("CUDA_LIBRARIES = ${CUDA_LIBRARIES}")
@@ -23,3 +23,5 @@ add_executable(example5 example5.cpp)
 add_executable(example6 example6.cpp)
 add_executable(example7 example7.cpp)
 add_executable(example7prof example7prof.cpp)
+
+add_executable(example-rvm example-rvm.cpp)

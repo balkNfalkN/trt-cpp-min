@@ -1,0 +1,5 @@
+* Add multiple cuStreams for overlap
+* Add cuda error utilities
+* Add general utilities (error catching, unlikely etc.)
+* Use up-to-date TRT API.
+* RVM determine width/height and R sizes by looking at model bindings.
