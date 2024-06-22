@@ -128,14 +128,14 @@ bool RVMRunner::InitStagingBuffers()
 {
   // Allocate host memory for staging input/output
   //
-  if( cudaMallocHost( &m_bufStageSrc, m_picWidth*m_picHeight*3*sizeof(uint8_t) ) != cudaError_t::cudaSuccess )
+  if( cudaMallocHost( &m_bufStageSrc, m_picSizeRGB ) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA host memory. Exiting." );
     assert( false );
     return false;
   }
 
-  if( cudaMallocHost( &m_bufStageFgr, m_picWidth*m_picHeight*4*sizeof(uint8_t) ) != cudaError_t::cudaSuccess )
+  if( cudaMallocHost( &m_bufStageFgr, m_picSizeRGBA ) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA host memory. Exiting." );
     assert( false );
