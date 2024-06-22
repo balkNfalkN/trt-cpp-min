@@ -96,24 +96,24 @@ bool LoadTRTEngineMatting( const std::string& strTrtEngineFilepath
 
   // Print out inputs/outpus
   //
-  std::cout << "=============\nInputs / Outputs (i.e. Bindings) :\n";
+  std::cerr << "=============\nInputs / Outputs (i.e. Bindings) :\n";
   int numBindings = (*ppTrtCudaEngine)->getNbBindings();
   for (int i = 0; i < numBindings; ++i)
   {
     nvinfer1::Dims dims = (*ppTrtCudaEngine)->getBindingDimensions(i);
-    std::cout << i << " : " << (*ppTrtCudaEngine)->getBindingName(i) << " : dims=";
+    std::cerr << i << " : " << (*ppTrtCudaEngine)->getBindingName(i) << " : dims=";
     for (int j = 0; j < dims.nbDims; ++j)
     {
-      std::cout << dims.d[j];
+      std::cerr << dims.d[j];
       if (j < dims.nbDims - 1)
       {
-        std::cout << "x";
+        std::cerr << "x";
       }
     }
-    std::cout << " , dtype=" << (int) (*ppTrtCudaEngine)->getBindingDataType(i) << " ";
-    std::cout << ((*ppTrtCudaEngine)->bindingIsInput(i) ? "IN" : "OUT") << std::endl;
+    std::cerr << " , dtype=" << (int) (*ppTrtCudaEngine)->getBindingDataType(i) << " ";
+    std::cerr << ((*ppTrtCudaEngine)->bindingIsInput(i) ? "IN" : "OUT") << std::endl;
   }
-  std::cout << "=============\n\n";
+  std::cerr << "=============\n\n";
 
   *ppTrtExecutionContext = (*ppTrtCudaEngine)->createExecutionContext();
   if( !*ppTrtExecutionContext )
@@ -177,9 +177,6 @@ class RVMRunState
     };
     void* m_cuBufs[IDX_NUM];
 
-    void* m_bufStageSrc;
-    void* m_bufStageFgr;
-
   // Common
   //
   private:
@@ -194,8 +191,12 @@ class RVMRunState
     bool ProcessPictures( const std::vector<std::string>& args );
 
   private:
+    bool InitStagingBuffers();
     bool ConsumeInput( const char* szInPic = nullptr );
     bool ProduceOutput( const char* szOutPic = nullptr );
+
+    void* m_bufStageSrc;
+    void* m_bufStageFgr;
 };
 
 bool RVMRunState::ProcessPictures( const std::vector<std::string> &args )
@@ -326,46 +327,34 @@ bool RVMRunState::InitBuffers()
     assert( false );
   }
 
-  m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully allocated device memory for bindings." );
-
-  // Allocate host memory for staging input/output
-  //
-  if( cudaMallocHost( &m_bufStageSrc, m_picWidth*m_picHeight*3*sizeof(uint8_t) ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA host memory. Exiting." );
-    assert( false );
-  }
-
-  if( cudaMallocHost( &m_bufStageFgr, m_picWidth*m_picHeight*4*sizeof(uint8_t) ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA host memory. Exiting." );
-    assert( false );
-  }
-
-  m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully allocated host memory for staging input/output." );
-
   // Initialize recurrents to 0
   //
   if( cudaMemset( m_cuBufs[IDX_R1I], 0, m_sizeR1) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to initialize CUDA memory. Exiting." );
     assert( false );
+    return false;
   }
   if( cudaMemset( m_cuBufs[IDX_R2I], 0, m_sizeR2) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to initialize CUDA memory. Exiting." );
     assert( false );
+    return false;
   }
   if( cudaMemset( m_cuBufs[IDX_R3I], 0, m_sizeR3) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to initialize CUDA memory. Exiting." );
     assert( false );
+    return false;
   }
   if( cudaMemset( m_cuBufs[IDX_R4I], 0, m_sizeR4) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to initialize CUDA memory. Exiting." );
     assert( false );
+    return false;
   }
+
+  m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully allocated device memory for bindings." );
 
   return true;
 }
@@ -441,7 +430,29 @@ bool RVMRunState::FreeBuffers()
 
 // raw RGB file implementation:
 //
-//
+
+bool RVMRunState::InitStagingBuffers()
+{
+  // Allocate host memory for staging input/output
+  //
+  if( cudaMallocHost( &m_bufStageSrc, m_picWidth*m_picHeight*3*sizeof(uint8_t) ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA host memory. Exiting." );
+    assert( false );
+    return false;
+  }
+
+  if( cudaMallocHost( &m_bufStageFgr, m_picWidth*m_picHeight*4*sizeof(uint8_t) ) != cudaError_t::cudaSuccess )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA host memory. Exiting." );
+    assert( false );
+    return false;
+  }
+
+  m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully allocated host memory for staging input/output." );
+
+  return true;
+}
 
 bool RVMRunState::ConsumeInput( const char* szInRawRGBFilepath )
 {
@@ -552,6 +563,9 @@ RVMRunState::RVMRunState( const std::vector<std::string>& args, nvinfer1::IExecu
   // Initialize CUDA buffers.
   //
   bool bRet = InitBuffers();
+  assert( bRet );
+
+  bRet = InitStagingBuffers();
   assert( bRet );
 }
 
