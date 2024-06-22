@@ -154,7 +154,8 @@ class RVMRunState
 
     const size_t m_picWidth = 512;
     const size_t m_picHeight = 288;
-    const size_t m_picSize = m_picWidth*m_picHeight*3*sizeof(uint8_t);
+    const size_t m_picSizeRGB = m_picWidth*m_picHeight*3*sizeof(uint8_t);
+    const size_t m_picSizeRGBA = m_picWidth*m_picHeight*4*sizeof(uint8_t);
     const size_t m_sizeR1 = 1*16*144*256*sizeof(uint16_t); 
     const size_t m_sizeR2 = 1*32*72*128*sizeof(uint16_t); 
     const size_t m_sizeR3 = 1*64*36*64*sizeof(uint16_t); 
@@ -201,6 +202,7 @@ bool RVMRunState::ProcessPictures( const std::vector<std::string> &args )
 {
   for( std::vector<std::string>::const_iterator itInFilepath = args.begin(); itInFilepath != args.end(); itInFilepath++ )
   {
+    m_logger.log( nvinfer1::ILogger::Severity::kINFO, (std::string("itInFilepath = ") + *itInFilepath).c_str() );
     if( !ConsumeInput( itInFilepath->c_str() ) )
     {
       m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to consume input. Exiting." );
@@ -214,11 +216,16 @@ bool RVMRunState::ProcessPictures( const std::vector<std::string> &args )
     }
 
     std::string outFilepath = *itInFilepath + ".fgr";
-    if( !ConsumeInput( outFilepath.c_str() ) )
+    if( !ProduceOutput( outFilepath.c_str() ) )
     {
       m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to produce output. Exiting." );
       return false;
     }
+
+    m_logger.log( nvinfer1::ILogger::Severity::kINFO
+	        , (std::string("Processed picture '") + outFilepath + "'").c_str() );
+
+    SwapRecurrents();
   }
   return true;
 }
@@ -246,7 +253,7 @@ void RVMRunState::SwapRecurrents()
   void* tmpR1 = m_cuBufs[IDX_R1I];
   void* tmpR2 = m_cuBufs[IDX_R2I];
   void* tmpR3 = m_cuBufs[IDX_R3I];
-  void* tmpR4 = m_cuBufs[IDX_R1I];
+  void* tmpR4 = m_cuBufs[IDX_R4I];
 
   m_cuBufs[IDX_R1I] = m_cuBufs[IDX_R1O];
   m_cuBufs[IDX_R2I] = m_cuBufs[IDX_R2O];
@@ -263,13 +270,13 @@ bool RVMRunState::InitBuffers()
 {
   // Allocate device memory buffers for bindings
   //
-  if( cudaMalloc( &m_cuBufs[IDX_SRC], m_picSize ) != cudaError_t::cudaSuccess )
+  if( cudaMalloc( &m_cuBufs[IDX_SRC], m_picSizeRGB ) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA memory. Exiting." );
     assert( false );
   }
 
-  if( cudaMalloc( &m_cuBufs[IDX_FGR], m_picSize ) != cudaError_t::cudaSuccess )
+  if( cudaMalloc( &m_cuBufs[IDX_FGR], m_picSizeRGBA ) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA memory. Exiting." );
     assert( false );
@@ -427,7 +434,7 @@ bool RVMRunState::FreeBuffers()
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA host memory. Exiting." );
     return false;
   }
-  m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully freed CUDA host memory for bindings." );
+  m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully freed CUDA host memory for staging." );
 
   return true;
 }
@@ -446,6 +453,8 @@ bool RVMRunState::ConsumeInput( const char* szInRawRGBFilepath )
     return false;
   }
 
+  m_logger.log( nvinfer1::ILogger::Severity::kINFO, (std::string("szInRawRGBFilepath = ") + szInRawRGBFilepath).c_str() );
+
   FILE* fileRawFrame = fopen( szInRawRGBFilepath, "rb" );
   if( !fileRawFrame )
   {
@@ -456,8 +465,8 @@ bool RVMRunState::ConsumeInput( const char* szInRawRGBFilepath )
 
   // Read entire file
   //
-  size_t bytesRead = fread( m_bufStageSrc, 1, m_picSize, fileRawFrame );
-  if( bytesRead != m_picSize )
+  size_t bytesRead = fread( m_bufStageSrc, 1, m_picSizeRGB, fileRawFrame );
+  if( bytesRead != m_picSizeRGB )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Failed to read raw RGB file '") + szInRawRGBFilepath + "'.").c_str() );
     fclose( fileRawFrame );
@@ -466,7 +475,7 @@ bool RVMRunState::ConsumeInput( const char* szInRawRGBFilepath )
 
   fclose( fileRawFrame );
 
-  if( cudaMemcpyAsync( m_cuBufs[IDX_SRC], m_bufStageSrc, m_picSize, cudaMemcpyHostToDevice ) != cudaError_t::cudaSuccess )
+  if( cudaMemcpyAsync( m_cuBufs[IDX_SRC], m_bufStageSrc, m_picSizeRGB, cudaMemcpyHostToDevice ) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to do HtoD cudaMemcpyAsync().");
     return false;
@@ -485,7 +494,7 @@ bool RVMRunState::ProduceOutput( const char* szInRawRGBAFilepath )
     return false;
   }
 
-  if( cudaMemcpyAsync( m_bufStageFgr, m_cuBufs[IDX_FGR], m_picSize, cudaMemcpyDeviceToHost ) != cudaError_t::cudaSuccess )
+  if( cudaMemcpyAsync( m_bufStageFgr, m_cuBufs[IDX_FGR], m_picSizeRGBA, cudaMemcpyDeviceToHost ) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to do DtoH cudaMemcpyAsync().");
     return false;
@@ -495,14 +504,14 @@ bool RVMRunState::ProduceOutput( const char* szInRawRGBAFilepath )
   if( !fileRawFrame )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR
-	        , (std::string("Bad filepath for raw RGB frame '") + szInRawRGBAFilepath + "'. Exiting").c_str() );
+	        , (std::string("Bad filepath for raw RGBA frame '") + szInRawRGBAFilepath + "'. Exiting").c_str() );
     return false;
   }
 
   // write out to file
   //
-  size_t bytesWritten = fwrite( m_bufStageFgr, 1, m_picSize, fileRawFrame );
-  if( bytesWritten != m_picSize )
+  size_t bytesWritten = fwrite( m_bufStageFgr, 1, m_picSizeRGBA, fileRawFrame );
+  if( bytesWritten != m_picSizeRGBA )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Failed to write out raw RGBA file '") + szInRawRGBAFilepath + "'.").c_str() );
     fclose( fileRawFrame );

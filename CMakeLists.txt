@@ -6,7 +6,7 @@ file(COPY model2.onnx DESTINATION .)
 
 # CUDA
 find_package(CUDA REQUIRED)
-include_directories(${CUDA_INCLUDE_DIRS})
+include_directories(${CUDA_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR})
 message("CUDA_TOOLKIT_ROOT_DIR = ${CUDA_TOOLKIT_ROOT_DIR}")
 message("CUDA_INCLUDE_DIRS = ${CUDA_INCLUDE_DIRS}")
 message("CUDA_LIBRARIES = ${CUDA_LIBRARIES}")
