@@ -1,6 +1,7 @@
 #pragma once
 
 #include <NvInferRuntimeBase.h>
+#include <iostream>
 #include <string>
 
 class Logger : public nvinfer1::ILogger

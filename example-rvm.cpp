@@ -1,5 +1,8 @@
 #include "rvm-io.hpp"
 
+#define PIC_WIDTH 512
+#define PIC_HEIGHT 288
+
 bool LoadTRTEngineMatting( const std::string& strTrtEngineFilepath
                          , Logger& logger
 			 , nvinfer1::IRuntime* pTrtRuntime
@@ -89,7 +92,7 @@ bool LoadTRTEngineMatting( const std::string& strTrtEngineFilepath
   return true;
 }
 
-bool RVMRunner::ProcessPictures( const std::vector<std::string> &args )
+bool MattingRunner::ProcessPictures( const std::vector<std::string> &args )
 {
   for( std::vector<std::string>::const_iterator itInFilepath = args.begin(); itInFilepath != args.end(); itInFilepath++ )
   {
@@ -124,7 +127,7 @@ bool RVMRunner::ProcessPictures( const std::vector<std::string> &args )
 // raw RGB file implementation:
 //
 
-bool RVMRunner::InitStagingBuffers()
+bool MattingRunner::InitStagingBuffers()
 {
   // Allocate host memory for staging input/output
   //
@@ -147,7 +150,7 @@ bool RVMRunner::InitStagingBuffers()
   return true;
 }
 
-bool RVMRunner::FreeStagingBuffers()
+bool MattingRunner::FreeStagingBuffers()
 {
   if( m_bufStageSrc && cudaFreeHost( m_bufStageSrc ) != cudaError_t::cudaSuccess )
   {
@@ -164,7 +167,7 @@ bool RVMRunner::FreeStagingBuffers()
   return true;
 }
 
-bool RVMRunner::ConsumeInput( const char* szInRawRGBFilepath )
+bool MattingRunner::ConsumeInput( const char* szInRawRGBFilepath )
 {
   if( !szInRawRGBFilepath )
   {
@@ -205,7 +208,7 @@ bool RVMRunner::ConsumeInput( const char* szInRawRGBFilepath )
   return true;
 }
 
-bool RVMRunner::ProduceOutput( const char* szInRawRGBAFilepath )
+bool MattingRunner::ProduceOutput( const char* szInRawRGBAFilepath )
 {
   if( !szInRawRGBAFilepath )
   {
@@ -251,14 +254,17 @@ bool RVMRunner::ProduceOutput( const char* szInRawRGBAFilepath )
   return true;
 }
 
-RVMRunner::~RVMRunner()
+MattingRunner::~MattingRunner()
 {
   bool bRet = FreeStagingBuffers();
   assert( bRet );
 }
 
-RVMRunner::RVMRunner( const std::vector<std::string>& args, nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& logger )
-  : RVMBase( pTrtExecutionContext, logger )
+MattingRunner::MattingRunner( const std::vector<std::string>& args, nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& logger )
+  : RVMBase( pTrtExecutionContext
+           , PIC_WIDTH*PIC_HEIGHT*3*sizeof(uint8_t)
+	   , PIC_WIDTH*PIC_HEIGHT*4*sizeof(uint8_t)
+	   , logger )
   , m_bufStageSrc(nullptr)
   , m_bufStageFgr(nullptr)
 {
@@ -324,7 +330,7 @@ int main( int argc, char* argv[] )
 
   // Process Loop
   //
-  RVMRunner rvmRunState( args.strArgs, pTrtExecutionContext, logger);
+  MattingRunner rvmRunState( args.strArgs, pTrtExecutionContext, logger);
 
   rvmRunState.ProcessPictures( args.strArgs );
 

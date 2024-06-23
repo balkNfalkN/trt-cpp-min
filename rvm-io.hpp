@@ -1,12 +1,13 @@
 #pragma once
 
+// TODO: RVM later to be abstracted away to any matting model.
 #include "rvm-base.hpp"
 
-class RVMRunner : public RVMBase
+class MattingRunner : public RVMBase
 {
   public:
-    RVMRunner( const std::vector<std::string>& args, nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& logger );
-    ~RVMRunner();
+    MattingRunner( const std::vector<std::string>& args, nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& logger );
+    ~MattingRunner();
 
   private:
 

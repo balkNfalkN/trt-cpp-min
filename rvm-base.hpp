@@ -7,7 +7,6 @@
 
 #include <cstdint>
 #include <vector>
-#include <iostream>
 #include <assert.h>
 
 #include "logger.hpp"
@@ -28,7 +27,7 @@
 class RVMBase
 {
   public:
-    RVMBase( nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& logger );
+    RVMBase( nvinfer1::IExecutionContext* pTrtExecutionContext, size_t picSizeSrc, size_t picSizeFgr, Logger& logger );
     virtual ~RVMBase();
 
   protected:
@@ -62,7 +61,7 @@ class RVMBase
     void* m_cuBufs[IDX_NUM];
 
   protected:
-    bool InitBuffers();
+    bool InitBuffers( size_t picSizeSrc, size_t picSizeFgr );
     bool FreeBuffers();
     bool RunInference();
     void SwapRecurrents();

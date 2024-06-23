@@ -1,7 +1,7 @@
 
 #include "rvm-base.hpp"
 
-RVMBase::RVMBase( nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& logger )
+RVMBase::RVMBase( nvinfer1::IExecutionContext* pTrtExecutionContext, size_t picSizeSrc, size_t picSizeFgr, Logger& logger )
   : m_pTrtExecutionContext(pTrtExecutionContext)
   , m_logger(logger)
 {
@@ -21,7 +21,7 @@ RVMBase::RVMBase( nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& log
 
   // Initialize CUDA buffers.
   //
-  bool bRet = InitBuffers();
+  bool bRet = InitBuffers( picSizeSrc, picSizeFgr );
   assert( bRet );
 }
 
@@ -31,17 +31,17 @@ RVMBase::~RVMBase()
   assert( bRet );
 }
 
-bool RVMBase::InitBuffers()
+bool RVMBase::InitBuffers( size_t picSizeSrc, size_t picSizeFgr )
 {
   // Allocate device memory buffers for bindings
   //
-  if( cudaMalloc( &m_cuBufs[IDX_SRC], m_picSizeRGB ) != cudaError_t::cudaSuccess )
+  if( cudaMalloc( &m_cuBufs[IDX_SRC], picSizeSrc ) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA memory. Exiting." );
     assert( false );
   }
 
-  if( cudaMalloc( &m_cuBufs[IDX_FGR], m_picSizeRGBA ) != cudaError_t::cudaSuccess )
+  if( cudaMalloc( &m_cuBufs[IDX_FGR], picSizeFgr ) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA memory. Exiting." );
     assert( false );
