@@ -1,8 +1,16 @@
 
 #include "rvm-base.hpp"
+#include <string>
 
-RVMBase::RVMBase( nvinfer1::IExecutionContext* pTrtExecutionContext, size_t picSizeSrc, size_t picSizeFgr, Logger& logger )
+RVMBase::RVMBase( nvinfer1::IExecutionContext* pTrtExecutionContext
+                , size_t picWidth, size_t picHeight, Logger& logger )
   : m_pTrtExecutionContext(pTrtExecutionContext)
+  , m_picWidth(picWidth)
+  , m_picHeight(picHeight)
+  , m_sizeR1(0)
+  , m_sizeR2(0)
+  , m_sizeR3(0)
+  , m_sizeR4(0)
   , m_logger(logger)
 {
   for( int i = 0; i < IDX_NUM; i++ )
@@ -21,7 +29,7 @@ RVMBase::RVMBase( nvinfer1::IExecutionContext* pTrtExecutionContext, size_t picS
 
   // Initialize CUDA buffers.
   //
-  bool bRet = InitBuffers( picSizeSrc, picSizeFgr );
+  bool bRet = InitBuffers();
   assert( bRet );
 }
 
@@ -31,17 +39,31 @@ RVMBase::~RVMBase()
   assert( bRet );
 }
 
-bool RVMBase::InitBuffers( size_t picSizeSrc, size_t picSizeFgr )
+bool RVMBase::InitBuffers()
 {
+  if( m_picWidth % 16 != 0 )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Width of ") + std::to_string(m_picWidth) + " is not divisible by 16. Exiting.").c_str() );
+    return false;
+  }
+  if( m_picHeight % 16 != 0 )
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Height of ") + std::to_string(m_picHeight) + " is not divisible by 16. Exiting.").c_str() );
+  {
+  }
+
+  m_sizeR1 = 1 * 16 * m_picHeight * m_picWidth * sizeof(uint16_t) / 4;
+  m_sizeR2 = 1 * 32 * m_picHeight * m_picWidth * sizeof(uint16_t) / 16;
+  m_sizeR3 = 1 * 64 * m_picHeight * m_picWidth * sizeof(uint16_t) / 64;
+  m_sizeR4 = 1 * 128 * m_picHeight * m_picWidth * sizeof(uint16_t) / 256;
   // Allocate device memory buffers for bindings
   //
-  if( cudaMalloc( &m_cuBufs[IDX_SRC], picSizeSrc ) != cudaError_t::cudaSuccess )
+  if( cudaMalloc( &m_cuBufs[IDX_SRC], m_picWidth*m_picHeight*3*sizeof(uint8_t) ) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA memory. Exiting." );
     assert( false );
   }
 
-  if( cudaMalloc( &m_cuBufs[IDX_FGR], picSizeFgr ) != cudaError_t::cudaSuccess )
+  if( cudaMalloc( &m_cuBufs[IDX_FGR], m_picWidth*m_picHeight*4*sizeof(uint8_t) ) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA memory. Exiting." );
     assert( false );

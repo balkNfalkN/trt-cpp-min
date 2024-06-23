@@ -6,7 +6,9 @@
 class MattingRunner : public RVMBase
 {
   public:
-    MattingRunner( const std::vector<std::string>& args, nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& logger );
+    MattingRunner( const std::vector<std::string>& args
+	         , size_t picWidth, size_t picHeight
+		 , nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& logger );
     ~MattingRunner();
 
   private:

@@ -1,4 +1,4 @@
-#include "rvm-io.hpp"
+#include "rvm.hpp"
 
 #define PIC_WIDTH 512
 #define PIC_HEIGHT 288
@@ -260,10 +260,13 @@ MattingRunner::~MattingRunner()
   assert( bRet );
 }
 
-MattingRunner::MattingRunner( const std::vector<std::string>& args, nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& logger )
+MattingRunner::MattingRunner( const std::vector<std::string>& args
+                            , size_t picWidth, size_t picHeight
+			    , nvinfer1::IExecutionContext* pTrtExecutionContext
+			    , Logger& logger )
   : RVMBase( pTrtExecutionContext
-           , PIC_WIDTH*PIC_HEIGHT*3*sizeof(uint8_t)
-	   , PIC_WIDTH*PIC_HEIGHT*4*sizeof(uint8_t)
+           , picWidth
+	   , picHeight
 	   , logger )
   , m_bufStageSrc(nullptr)
   , m_bufStageFgr(nullptr)
@@ -330,7 +333,7 @@ int main( int argc, char* argv[] )
 
   // Process Loop
   //
-  MattingRunner rvmRunState( args.strArgs, pTrtExecutionContext, logger);
+  MattingRunner rvmRunState( args.strArgs, PIC_WIDTH, PIC_HEIGHT, pTrtExecutionContext, logger);
 
   rvmRunState.ProcessPictures( args.strArgs );
 

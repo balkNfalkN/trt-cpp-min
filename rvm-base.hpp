@@ -27,7 +27,8 @@
 class RVMBase
 {
   public:
-    RVMBase( nvinfer1::IExecutionContext* pTrtExecutionContext, size_t picSizeSrc, size_t picSizeFgr, Logger& logger );
+    RVMBase( nvinfer1::IExecutionContext* pTrtExecutionContext
+	   , size_t picWidth, size_t picHeight, Logger& logger );
     virtual ~RVMBase();
 
   protected:
@@ -35,14 +36,14 @@ class RVMBase
     Logger& m_logger;
     cudaStream_t m_cudaStream;
 
-    const size_t m_picWidth = 512;
-    const size_t m_picHeight = 288;
+    const size_t m_picWidth;
+    const size_t m_picHeight;
     const size_t m_picSizeRGB = m_picWidth*m_picHeight*3*sizeof(uint8_t);
     const size_t m_picSizeRGBA = m_picWidth*m_picHeight*4*sizeof(uint8_t);
-    const size_t m_sizeR1 = 1*16*144*256*sizeof(uint16_t); 
-    const size_t m_sizeR2 = 1*32*72*128*sizeof(uint16_t); 
-    const size_t m_sizeR3 = 1*64*36*64*sizeof(uint16_t); 
-    const size_t m_sizeR4 = 1*128*18*32*sizeof(uint16_t); 
+    size_t m_sizeR1;
+    size_t m_sizeR2;
+    size_t m_sizeR3;
+    size_t m_sizeR4;
 
     enum BindingIndices
     {
@@ -61,7 +62,7 @@ class RVMBase
     void* m_cuBufs[IDX_NUM];
 
   protected:
-    bool InitBuffers( size_t picSizeSrc, size_t picSizeFgr );
+    bool InitBuffers();
     bool FreeBuffers();
     bool RunInference();
     void SwapRecurrents();
