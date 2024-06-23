@@ -10,6 +10,11 @@ MattingIOFile::MattingIOFile( size_t picSizeSrc, size_t picSizeFgr, const std::v
   , m_picSizeFgr( picSizeFgr )
   , m_inFilepaths( args )
 {
+  if( !InitStagingBuffers() )
+  {
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to initialize staging buffer. Exiting." );
+    assert( false );
+  }
   m_itInFilepath = m_inFilepaths.begin();
 }
 
@@ -63,7 +68,7 @@ bool MattingIOFile::FreeStagingBuffers()
 
 bool MattingIOFile::ConsumeNextInput( void* cuBufSrc, cudaStream_t cudaStream )
 {
-  if( m_itInFilepath != m_inFilepaths.end() )
+  if( m_itInFilepath == m_inFilepaths.end() )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kINTERNAL_ERROR
 	        , "ConsumeNextInput past end. Exiting." );
@@ -102,7 +107,7 @@ bool MattingIOFile::ConsumeNextInput( void* cuBufSrc, cudaStream_t cudaStream )
 
 bool MattingIOFile::ProduceNextOutput( void* cuBufFgr, cudaStream_t cudaStream )
 {
-  if( m_itInFilepath != m_inFilepaths.end() )
+  if( m_itInFilepath == m_inFilepaths.end() )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kINTERNAL_ERROR
 	        , "szInRawRGBFilepath agument is NULL. Exiting." );
@@ -110,17 +115,20 @@ bool MattingIOFile::ProduceNextOutput( void* cuBufFgr, cudaStream_t cudaStream )
     return false;
   }
 
+  std::string outFilepath = *m_itInFilepath + ".fgr";
+  ++m_itInFilepath;
+
   if( cudaMemcpyAsync( m_bufStageFgr, cuBufFgr, m_picSizeFgr, cudaMemcpyDeviceToHost, cudaStream ) != cudaError_t::cudaSuccess )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to do DtoH cudaMemcpyAsync().");
     return false;
   }
 
-  FILE* fileRawFrame = fopen( m_itInFilepath->c_str(), "wb" );
+  FILE* fileRawFrame = fopen( outFilepath.c_str(), "wb" );
   if( !fileRawFrame )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kERROR
-	        , (std::string("Bad filepath for raw RGBA frame '") + *m_itInFilepath + "'. Exiting").c_str() );
+	        , (std::string("Bad filepath for raw RGBA frame '") + outFilepath + "'. Exiting").c_str() );
     return false;
   }
 
@@ -136,14 +144,15 @@ bool MattingIOFile::ProduceNextOutput( void* cuBufFgr, cudaStream_t cudaStream )
   size_t bytesWritten = fwrite( m_bufStageFgr, 1, m_picSizeFgr, fileRawFrame );
   if( bytesWritten != m_picSizeFgr )
   {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Failed to write out raw RGBA file '") + *m_itInFilepath + "'.").c_str() );
+    m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Failed to write out raw RGBA file '") + outFilepath + "'.").c_str() );
     fclose( fileRawFrame );
     return false;
   }
 
   fclose( fileRawFrame );
 
-  ++m_itInFilepath;
+  m_logger.log( nvinfer1::ILogger::Severity::kINFO
+              , (std::string("Processed picture '") + outFilepath + "'").c_str() );
 
   return true;
 }

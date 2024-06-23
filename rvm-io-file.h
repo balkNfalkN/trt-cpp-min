@@ -15,8 +15,8 @@ class MattingIOFile
 
   protected:
     bool FreeStagingBuffers();
-    inline bool ConsumeNextInput( void* cuBufSrc, cudaStream_t cudaStream );
-    inline bool ProduceNextOutput( void* cuBufFgr, cudaStream_t cudaStream ) ;
+    bool ConsumeNextInput( void* cuBufSrc, cudaStream_t cudaStream );
+    bool ProduceNextOutput( void* cuBufFgr, cudaStream_t cudaStream ) ;
 
     // Skeleton of process loop to come.
     bool IsStillRunning();

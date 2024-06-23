@@ -38,8 +38,6 @@ class RVMBase
 
     const size_t m_picWidth;
     const size_t m_picHeight;
-    const size_t m_picSizeRGB = m_picWidth*m_picHeight*3*sizeof(uint8_t);
-    const size_t m_picSizeRGBA = m_picWidth*m_picHeight*4*sizeof(uint8_t);
     size_t m_sizeR1;
     size_t m_sizeR2;
     size_t m_sizeR3;
@@ -68,13 +66,17 @@ class RVMBase
     void SwapRecurrents();
 
   protected:
+    inline cudaStream_t GetCuStream()
+    {
+      return m_cudaStream;
+    }
     inline void* GetCuBufSrc()
     {
       return m_cuBufs[IDX_SRC];
     }
     inline void* GetCuBufFgr()
     {
-      return m_cuBufs[IDX_SRC];
+      return m_cuBufs[IDX_FGR];
     }
 };
 
