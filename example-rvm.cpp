@@ -97,7 +97,7 @@ bool MattingRunner::ProcessPictures( const std::vector<std::string> &args )
   for( std::vector<std::string>::const_iterator itInFilepath = args.begin(); itInFilepath != args.end(); itInFilepath++ )
   {
     m_logger.log( nvinfer1::ILogger::Severity::kINFO, (std::string("itInFilepath = ") + *itInFilepath).c_str() );
-    if( !ConsumeInput( itInFilepath->c_str() ) )
+    if( !ConsumeNextInput( itInFilepath->c_str() ) )
     {
       m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to consume input. Exiting." );
       return false;
@@ -110,7 +110,7 @@ bool MattingRunner::ProcessPictures( const std::vector<std::string> &args )
     }
 
     std::string outFilepath = *itInFilepath + ".fgr";
-    if( !ProduceOutput( outFilepath.c_str() ) )
+    if( !ProduceNextOutput( outFilepath.c_str() ) )
     {
       m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to produce output. Exiting." );
       return false;
@@ -167,7 +167,7 @@ bool MattingRunner::FreeStagingBuffers()
   return true;
 }
 
-bool MattingRunner::ConsumeInput( const char* szInRawRGBFilepath )
+bool MattingRunner::ConsumeNextInput( const char* szInRawRGBFilepath )
 {
   if( !szInRawRGBFilepath )
   {
@@ -208,7 +208,7 @@ bool MattingRunner::ConsumeInput( const char* szInRawRGBFilepath )
   return true;
 }
 
-bool MattingRunner::ProduceOutput( const char* szInRawRGBAFilepath )
+bool MattingRunner::ProduceNextOutput( const char* szInRawRGBAFilepath )
 {
   if( !szInRawRGBAFilepath )
   {

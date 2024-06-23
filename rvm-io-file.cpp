@@ -17,11 +17,6 @@ bool MattingIOFile::KeepRunning()
   return m_itInFilepath != m_inFilepaths.end();
 }
 
-const char* MattingIOFile::CurIteration()
-{
-  return m_itInFilepath++->c_str();
-}
-
 MattingIOFile::~MattingIOFile()
 {
   FreeStagingBuffers();

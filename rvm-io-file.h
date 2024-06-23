@@ -15,12 +15,11 @@ class MattingIOFile
 
   protected:
     bool FreeStagingBuffers();
-    inline bool ConsumeInput( const char* szInPic = nullptr );
-    inline bool ProduceOutput( const char* szOutPic = nullptr );
+    inline bool ConsumeNextInput();
+    inline bool ProduceNextOutput();
 
     // Skeleton of process loop to come.
     bool KeepRunning();
-    const char* CurIteration();
 
   private:
     void* m_bufStageSrc;

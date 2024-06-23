@@ -21,8 +21,8 @@ class MattingRunner : public RVMBase
   private:
     bool InitStagingBuffers();
     bool FreeStagingBuffers();
-    bool ConsumeInput( const char* szInPic = nullptr );
-    bool ProduceOutput( const char* szOutPic = nullptr );
+    bool ConsumeNextInput( const char* szInPic = nullptr );
+    bool ProduceNextOutput( const char* szOutPic = nullptr );
 
     void* m_bufStageSrc;
     void* m_bufStageFgr;
