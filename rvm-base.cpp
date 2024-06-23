@@ -209,6 +209,8 @@ bool RVMBase::RunInference()
     m_logger.log( nvinfer1::ILogger::Severity::kERROR, "TRT enqueueV2() failed. Exiting." );
     return false;
   }
+  
+  SwapRecurrents();
 
   return true;
 }

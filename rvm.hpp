@@ -58,8 +58,6 @@ bool MattingRunner<TInOut>::ProcessPictures( const std::vector<std::string> &arg
       m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to produce output. Exiting." );
       return false;
     }
-
-    SwapRecurrents();
   }
   return true;
 }
