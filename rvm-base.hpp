@@ -66,5 +66,15 @@ class RVMBase
     bool FreeBuffers();
     bool RunInference();
     void SwapRecurrents();
+
+  protected:
+    inline void* GetCuBufSrc()
+    {
+      return m_cuBufs[IDX_SRC];
+    }
+    inline void* GetCuBufFgr()
+    {
+      return m_cuBufs[IDX_SRC];
+    }
 };
 
