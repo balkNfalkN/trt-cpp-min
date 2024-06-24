@@ -1,5 +1,6 @@
 #include "rvm.hpp"
 #include "rvm-io-file.h"
+#include "rvm-io-fd.h"
 
 #define PIC_WIDTH 512
 #define PIC_HEIGHT 288
