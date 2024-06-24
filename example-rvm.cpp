@@ -1,4 +1,8 @@
-#include "rvm-io.hpp"
+#include "rvm.hpp"
+#include "rvm-io-file.h"
+
+#define PIC_WIDTH 512
+#define PIC_HEIGHT 288
 
 bool LoadTRTEngineMatting( const std::string& strTrtEngineFilepath
                          , Logger& logger
@@ -89,183 +93,6 @@ bool LoadTRTEngineMatting( const std::string& strTrtEngineFilepath
   return true;
 }
 
-bool RVMRunner::ProcessPictures( const std::vector<std::string> &args )
-{
-  for( std::vector<std::string>::const_iterator itInFilepath = args.begin(); itInFilepath != args.end(); itInFilepath++ )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kINFO, (std::string("itInFilepath = ") + *itInFilepath).c_str() );
-    if( !ConsumeInput( itInFilepath->c_str() ) )
-    {
-      m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to consume input. Exiting." );
-      return false;
-    }
-
-    if( !RunInference() )
-    {
-      m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to run TRT inference. Exiting." );
-      return false;
-    }
-
-    std::string outFilepath = *itInFilepath + ".fgr";
-    if( !ProduceOutput( outFilepath.c_str() ) )
-    {
-      m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to produce output. Exiting." );
-      return false;
-    }
-
-    m_logger.log( nvinfer1::ILogger::Severity::kINFO
-	        , (std::string("Processed picture '") + outFilepath + "'").c_str() );
-
-    SwapRecurrents();
-  }
-  return true;
-}
-
-// raw RGB file implementation:
-//
-
-bool RVMRunner::InitStagingBuffers()
-{
-  // Allocate host memory for staging input/output
-  //
-  if( cudaMallocHost( &m_bufStageSrc, m_picSizeRGB ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA host memory. Exiting." );
-    assert( false );
-    return false;
-  }
-
-  if( cudaMallocHost( &m_bufStageFgr, m_picSizeRGBA ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to allocate CUDA host memory. Exiting." );
-    assert( false );
-    return false;
-  }
-
-  m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully allocated host memory for staging input/output." );
-
-  return true;
-}
-
-bool RVMRunner::FreeStagingBuffers()
-{
-  if( m_bufStageSrc && cudaFreeHost( m_bufStageSrc ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA host memory. Exiting." );
-    return false;
-  }
-  if( m_bufStageFgr && cudaFreeHost( m_bufStageFgr ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to free CUDA host memory. Exiting." );
-    return false;
-  }
-  m_logger.log( nvinfer1::ILogger::Severity::kINFO, "Successfully freed CUDA host memory for staging." );
-
-  return true;
-}
-
-bool RVMRunner::ConsumeInput( const char* szInRawRGBFilepath )
-{
-  if( !szInRawRGBFilepath )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kINTERNAL_ERROR
-	        , "szInRawRGBFilepath agument is NULL. Exiting." );
-    assert( false );
-    return false;
-  }
-
-  m_logger.log( nvinfer1::ILogger::Severity::kINFO, (std::string("szInRawRGBFilepath = ") + szInRawRGBFilepath).c_str() );
-
-  FILE* fileRawFrame = fopen( szInRawRGBFilepath, "rb" );
-  if( !fileRawFrame )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR
-	        , (std::string("Bad filepath for raw RGB frame '") + szInRawRGBFilepath + "'. Exiting").c_str() );
-    return false;
-  }
-
-  // Read entire file
-  //
-  size_t bytesRead = fread( m_bufStageSrc, 1, m_picSizeRGB, fileRawFrame );
-  if( bytesRead != m_picSizeRGB )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Failed to read raw RGB file '") + szInRawRGBFilepath + "'.").c_str() );
-    fclose( fileRawFrame );
-    return false;
-  }
-
-  fclose( fileRawFrame );
-
-  if( cudaMemcpyAsync( m_cuBufs[IDX_SRC], m_bufStageSrc, m_picSizeRGB, cudaMemcpyHostToDevice, m_cudaStream ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to do HtoD cudaMemcpyAsync().");
-    return false;
-  }
-
-  return true;
-}
-
-bool RVMRunner::ProduceOutput( const char* szInRawRGBAFilepath )
-{
-  if( !szInRawRGBAFilepath )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kINTERNAL_ERROR
-	        , "szInRawRGBFilepath agument is NULL. Exiting." );
-    assert( false );
-    return false;
-  }
-
-  if( cudaMemcpyAsync( m_bufStageFgr, m_cuBufs[IDX_FGR], m_picSizeRGBA, cudaMemcpyDeviceToHost, m_cudaStream ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "Failed to do DtoH cudaMemcpyAsync().");
-    return false;
-  }
-
-  FILE* fileRawFrame = fopen( szInRawRGBAFilepath, "wb" );
-  if( !fileRawFrame )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR
-	        , (std::string("Bad filepath for raw RGBA frame '") + szInRawRGBAFilepath + "'. Exiting").c_str() );
-    return false;
-  }
-
-  // Pretty sure I don't need that but keeping for now.
-  if( cudaStreamSynchronize( m_cudaStream ) != cudaError_t::cudaSuccess )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, "cudaStreamSynchronize() failed. Exiting." );
-    return false;
-  }
-
-  // write out to file
-  //
-  size_t bytesWritten = fwrite( m_bufStageFgr, 1, m_picSizeRGBA, fileRawFrame );
-  if( bytesWritten != m_picSizeRGBA )
-  {
-    m_logger.log( nvinfer1::ILogger::Severity::kERROR, ( std::string("Failed to write out raw RGBA file '") + szInRawRGBAFilepath + "'.").c_str() );
-    fclose( fileRawFrame );
-    return false;
-  }
-
-  fclose( fileRawFrame );
-
-  return true;
-}
-
-RVMRunner::~RVMRunner()
-{
-  bool bRet = FreeStagingBuffers();
-  assert( bRet );
-}
-
-RVMRunner::RVMRunner( const std::vector<std::string>& args, nvinfer1::IExecutionContext* pTrtExecutionContext, Logger& logger )
-  : RVMBase( pTrtExecutionContext, logger )
-  , m_bufStageSrc(nullptr)
-  , m_bufStageFgr(nullptr)
-{
-  bool bRet = InitStagingBuffers();
-  assert( bRet );
-}
-
 struct Arguments_ExampleRVM
 {
   std::string strTrtEngineFilepath;
@@ -295,10 +122,15 @@ bool Arguments_ExampleRVM::parse( int argc, char* argv[], Logger& logger )
 #define ERROR_TRT_RUNTIME_INIT_FAILED         1
 #define ERROR_TRT_ENGINE_LOAD_FAILED          2
 
+#define Q(x) #x
+#define QUOTE(x) Q(x)
+
+#define MATTING_IO_IMPL_QUOTED QUOTE(MATTING_IO_IMPL)
+
 int main( int argc, char* argv[] )
 {
   Logger logger;
-  logger.log( nvinfer1::ILogger::Severity::kINFO, "C++ TensorRT RVM Inference example" );
+  logger.log( nvinfer1::ILogger::Severity::kINFO, (std::string("C++ TensorRT RVM Inference example - IO: ") + MATTING_IO_IMPL_QUOTED).c_str() );
   
   Arguments_ExampleRVM args;
   args.parse( argc, argv, logger );
@@ -324,7 +156,7 @@ int main( int argc, char* argv[] )
 
   // Process Loop
   //
-  RVMRunner rvmRunState( args.strArgs, pTrtExecutionContext, logger);
+  MattingRunner<MATTING_IO_IMPL> rvmRunState( args.strArgs, PIC_WIDTH, PIC_HEIGHT, pTrtExecutionContext, logger);
 
   rvmRunState.ProcessPictures( args.strArgs );
 
