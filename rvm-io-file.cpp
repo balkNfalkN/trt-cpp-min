@@ -2,7 +2,8 @@
 #include "rvm-io-file.h"
 #include <assert.h>
 
-MattingIOFile::MattingIOFile( size_t picSizeSrc, size_t picSizeFgr, const std::vector<std::string>& args, Logger& logger )
+MattingIOFile::MattingIOFile( size_t picSizeSrc, size_t picSizeFgr
+                            , const std::vector<std::string>& args, Logger& logger )
   : m_logger( logger )
   , m_bufStageSrc( nullptr )
   , m_bufStageFgr( nullptr )

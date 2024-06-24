@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stddef.h>
 
 #include "logger.hpp"
@@ -7,7 +9,8 @@
 class MattingIOFile
 {
   protected:
-    MattingIOFile( size_t picSizeSrc, size_t picSizeFgr, const std::vector<std::string>& args, Logger& logger );
+    MattingIOFile( size_t picSizeSrc, size_t picSizeFgr
+	         , const std::vector<std::string>& args, Logger& logger );
     virtual ~MattingIOFile();
 
   protected:
