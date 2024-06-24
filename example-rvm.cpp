@@ -122,10 +122,15 @@ bool Arguments_ExampleRVM::parse( int argc, char* argv[], Logger& logger )
 #define ERROR_TRT_RUNTIME_INIT_FAILED         1
 #define ERROR_TRT_ENGINE_LOAD_FAILED          2
 
+#define Q(x) #x
+#define QUOTE(x) Q(x)
+
+#define MATTING_IO_IMPL_QUOTED QUOTE(MATTING_IO_IMPL)
+
 int main( int argc, char* argv[] )
 {
   Logger logger;
-  logger.log( nvinfer1::ILogger::Severity::kINFO, "C++ TensorRT RVM Inference example" );
+  logger.log( nvinfer1::ILogger::Severity::kINFO, (std::string("C++ TensorRT RVM Inference example - IO: ") + MATTING_IO_IMPL_QUOTED).c_str() );
   
   Arguments_ExampleRVM args;
   args.parse( argc, argv, logger );
@@ -151,7 +156,7 @@ int main( int argc, char* argv[] )
 
   // Process Loop
   //
-  MattingRunner<MattingIOFile> rvmRunState( args.strArgs, PIC_WIDTH, PIC_HEIGHT, pTrtExecutionContext, logger);
+  MattingRunner<MATTING_IO_IMPL> rvmRunState( args.strArgs, PIC_WIDTH, PIC_HEIGHT, pTrtExecutionContext, logger);
 
   rvmRunState.ProcessPictures( args.strArgs );
 

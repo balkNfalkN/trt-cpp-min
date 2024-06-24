@@ -11,6 +11,9 @@ message("CUDA_TOOLKIT_ROOT_DIR = ${CUDA_TOOLKIT_ROOT_DIR}")
 message("CUDA_INCLUDE_DIRS = ${CUDA_INCLUDE_DIRS}")
 message("CUDA_LIBRARIES = ${CUDA_LIBRARIES}")
 
+set( MATTING_IO_IMPL MattingIOFile CACHE STRING "set the input/output implementation to compile with" ) 
+
+add_definitions( -DMATTING_IO_IMPL=${MATTING_IO_IMPL} )
 
 link_libraries(nvinfer nvonnxparser ${CUDA_LIBRARIES})
 
