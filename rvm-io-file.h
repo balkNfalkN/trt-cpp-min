@@ -13,7 +13,7 @@ class MattingIOFile : public IOBaseHost
   protected:
     MattingIOFile( size_t picSizeSrc, size_t picSizeFgr
 	         , const std::vector<std::string>& args, Logger& logger );
-    virtual ~MattingIOFile();
+    virtual ~MattingIOFile(){}
 
   protected:
     bool ConsumeNextInput( void* cuBufSrc, cudaStream_t cudaStream );
@@ -24,6 +24,4 @@ class MattingIOFile : public IOBaseHost
 
     std::vector<std::string> m_inFilepaths;
     std::vector<std::string>::const_iterator m_itInFilepath;
-
-    Logger& m_logger;
 };

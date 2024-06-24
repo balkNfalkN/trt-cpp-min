@@ -5,7 +5,6 @@
 MattingIOFile::MattingIOFile( size_t picSizeSrc, size_t picSizeFgr
                             , const std::vector<std::string>& args, Logger& logger )
   : IOBaseHost( picSizeSrc, picSizeFgr, logger )
-  , m_logger( logger )
   , m_inFilepaths( args )
 {
   m_itInFilepath = m_inFilepaths.begin();
@@ -14,11 +13,6 @@ MattingIOFile::MattingIOFile( size_t picSizeSrc, size_t picSizeFgr
 bool MattingIOFile::IsStillRunning()
 {
   return m_itInFilepath != m_inFilepaths.end();
-}
-
-MattingIOFile::~MattingIOFile()
-{
-  FreeStagingBuffers(m_logger);
 }
 
 bool MattingIOFile::ConsumeNextInput( void* cuBufSrc, cudaStream_t cudaStream )
